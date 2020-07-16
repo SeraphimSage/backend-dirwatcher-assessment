@@ -4,8 +4,32 @@ import signal
 import os
 import time
 import logging
+import errno
+import argparse
+from datetime import datetime as date_t
+
 
 exit_flag = False
+logger = logging.getLogger(__file__)
+files = {}
+
+
+def watcher(args):
+    logger.info('Watching directory: {}, File Extension: {}, Every {} second, Magic Text is: {}'.format(
+        args.path, args.ext, args.interval, args.magic))
+    file_list = os.listdir(args.path)
+    for f in file_list:
+        if f.endswith(args.text) and f not in files:
+            files[f] = 0
+            logger.info(f"{f} added to watchlist.")
+    for f in list(files):
+        if f not in file_list:
+            logger.info(f"{f} no longer in watchlist.")
+            del files[f]
+    for f in files:
+        files[f] = find_magic(
+            os.path.join(args.path, f), files[f], args.magic
+        )
 
 
 def signal_handler(sig_num, frame):
