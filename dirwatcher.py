@@ -10,6 +10,8 @@ from datetime import datetime as date_t
 
 
 exit_flag = False
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(axctime)s:%(levelname)s:%(message)s:%(threadName)s:')
 logger = logging.getLogger(__file__)
 files = {}
 
@@ -42,10 +44,35 @@ def signal_handler(sig_num, frame):
     """
     # log the associated signal name
     logger.warn('Received ' + signal.Signals(sig_num).name)
+    logger.error("Program was interupted by user command.")
+    global exit_flag
     exit_flag = True
 
 
+def create_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-e', '--ext', type=str, default='.txt',
+                        help='Text file extension to watch for.')
+    parser.add_argument('-i', '--int', type=float, default=1.0,
+                        help='Number of seconds between polling.')
+    parser.add_argument('path', help='Directory to be watched.')
+    parser.add_argument('magic', help='String to watch for.')
+
+
 def main():
+
+    green_flag = date_t.now()
+    logger.info(
+        '\n'
+        '------------------------------\n'
+        '   Running{0}\n'
+        '   Started on {1}\n'
+        '------------------------------\n'
+        .format(__file__, green_flag.isoformat())
+    )
+    parser = create_parser()
+    args = parser.parse_args()
+
     # Hook into these two signals from the OS
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -54,16 +81,36 @@ def main():
 
     while not exit_flag:
         try:
-            # call my directory watching function
-            pass
-        except Exception as e:
+            # try to call my directory watching function
+            watcher(args)
+        except OSError as ose:
             # This is an UNHANDLED exception
             # Log an ERROR level message here
-            pass
+            if ose.errno == errno.ENOENT:
+                logger.error(f'{args.path} directory not found')
+                time.sleep(1)
+            else:
+                logger.error(ose)
+
+        except Exception as e:
+            logger.error(f'UNHANDLED EXCEPTION:{e}')
 
         # put a sleep inside my while loop so I don't peg the cpu usage at 100%
-        time.sleep(polling_interval)
+        time.sleep(int(float(args.interval)))
 
-    # final exit point happens here
-    # Log a message that we are shutting down
-    # Include the overall uptime since program start
+    # Final exit point
+    # Notification of shutting down
+    # Uptime from start to closing
+    uptime = date_t.now() - green_flag
+    logger.info(
+        '\n'
+        '------------------------------\n'
+        '   Stopped {}\n'
+        '   Uptime was {}\n'
+        '------------------------------\n'
+        .format(__file__, str(uptime))
+    )
+    logging.shutdown()
+
+    if __name__ == "__main__":
+        main()
